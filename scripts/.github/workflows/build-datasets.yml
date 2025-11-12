@@ -4,6 +4,9 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: write   # allow this workflow to push to the repo
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,17 +19,23 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install pandas
+      - name: Install deps
         run: pip install pandas
 
-      - name: Run merge script
+      - name: Build datasets
         run: python scripts/build_datasets.py
 
-      - name: Upload results
-        uses: actions/upload-artifact@v4
-        with:
-          name: datasets
-          path: |
-            RowLevel_With_TimeBuckets_ALL.csv
-            district/
-            views/
+      - name: Commit outputs back to repo
+        run: |
+          mkdir -p data/exports
+          # move top-level outputs into data/exports so they’re versioned
+          if [ -f RowLevel_With_TimeBuckets_ALL.csv ]; then mv RowLevel_With_TimeBuckets_ALL.csv data/exports/; fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "ci: rebuild datasets"
+            git push
+          fi
